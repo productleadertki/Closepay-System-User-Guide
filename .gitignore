@@ -1,0 +1,8 @@
+# Local credentials, exports, and generated state
+.env
+.env.*
+*.local.json
+*.backup.json
+node_modules/
+__pycache__/
+*.log
