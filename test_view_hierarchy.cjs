@@ -1,6 +1,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
+const vm=require('node:vm');
 
 const app=()=>fs.readFileSync('./app.js','utf8');
 const ui=()=>fs.readFileSync('./hierarchy-ui.js','utf8');
@@ -16,13 +17,24 @@ test('guide links open an explicit reading route while hierarchy links open titl
   assert.match(view,/jump\('Buka panduan /);
 });
 
-test('module and submodule title views defer their written content to the reading view',()=>{
+test('a submodule explanation without a child guide opens its submodule page',()=>{
+  const source=app();
+  const expression=source.match(/const guideForDoc=(.*);\r?\nconst docPath=/)?.[1];
+  assert.ok(expression,'guideForDoc route helper exists');
+  const guideForDoc=vm.runInNewContext('('+expression+')',{
+    menus:[{image:'test',category:'Test'}],window:{HELP_HIERARCHY:{topicSections:{topic:[]},sections:{test:[]}},HELP_CONTENT:{topic:{body:'Penjelasan konsep'}}},encodeURIComponent
+  });
+  assert.equal(guideForDoc({slug:'topic',title:'Submodul Uji',category:'Test'}).path,'#/panduan/topic');
+  assert.doesNotMatch(ui(),/return hasLegacy\(topic\.slug\)\?readUrl\(topic\):topicUrl\(topic\)/);
+});
+
+test('module and submodule views can show optional explanations without hiding child guides',()=>{
   const view=ui();
   assert.match(view,/if\(path\.reading\)/);
-  assert.match(view,/Baca panduan/);
   assert.match(view,/else if\(!path\.topic\)/);
   assert.match(view,/else if\(!path\.section\)/);
   assert.match(view,/else if\(!path\.part\)/);
+  assert.match(view,/contentData\[path\.topic\.slug\]/);
 });
 
 test('viewer exposes a nested product-local dropdown with guide actions',()=>{

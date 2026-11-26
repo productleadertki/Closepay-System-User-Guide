@@ -12,12 +12,10 @@ test('reader exposes a nested product-only dropdown independent of the sidebar',
  assert.match(html,/\.guide-dropdown\[open\]/);
 });
 
-test('article content is rendered only in the reading view at the selected level',()=>{
+test('content is scoped to its selected module, submodule or guide',()=>{
  const ui=fs.readFileSync('./hierarchy-ui.js','utf8');
- const start=ui.indexOf('if(path.reading){'),end=ui.indexOf('}else if(!path.section){',start);
- assert.ok(start>=0&&end>start,'guide content must be confined to the reading view');
- const reading=ui.slice(start,end),titles=ui.slice(end,ui.indexOf('article.append(content)',end));
- assert.match(reading,/path\.topic\.slug\+\(path\.section\?/);
- assert.match(reading,/appendBody\(content,data\)/);
- assert.doesNotMatch(titles,/appendBody\(/);
+ assert.match(ui,/root\.HelpAdminModel\.moduleKey\(menu\.image,path\.module\.id\)/);
+ assert.match(ui,/contentData\[path\.topic\.slug\]/);
+ assert.match(ui,/contentData\[path\.topic\.slug\+'\/'\+path\.section\.id\]/);
+ assert.match(ui,/appendBody\(content,data\)/);
 });

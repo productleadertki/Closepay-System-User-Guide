@@ -18,10 +18,11 @@ function render({view,menu,docs,state={}}){
   path.reading=!!state.reading&&!!path.topic&&(!state.part||!!path.part);
   const sections=path.topic?(config.topicSections?.[path.topic.slug]||config.sections?.[menu.image]||[]):config.sections?.[menu.image]||[];
   const contentData=root.HELP_CONTENT||{};
-  const hasLegacy=key=>{const data=contentData[key];return !!(data?.body||data?.html||data?.image);};
-  const firstGuideUrl=topic=>{const list=config.topicSections?.[topic.slug]||config.sections?.[menu.image]||[];for(const section of list)if(section.parts?.length)return readUrl(topic,section,section.parts[0]);return hasLegacy(topic.slug)?readUrl(topic):topicUrl(topic);};
+  const firstGuideUrl=topic=>{const list=config.topicSections?.[topic.slug]||config.sections?.[menu.image]||[];for(const section of list)if(section.parts?.length)return readUrl(topic,section,section.parts[0]);return topicUrl(topic);};
   const appendBody=(container,data)=>{if(!data)return;if(data.html){const rich=el('div','rich-body');rich.append(root.HelpRichText.fragment(data.html));container.append(rich);return;}if(data.body)String(data.body).split(/\n\s*\n/).filter(Boolean).forEach(block=>container.append(el('p','article-paragraph',block.trim())));};
   const appendFigure=(container,src,alt)=>{if(!src)return;const figure=el('figure','article-figure'),image=el('img');image.src=src;image.alt=alt;figure.append(image,el('figcaption','','Gambar panduan'));container.append(figure);};
+  const appendVideo=(container,raw,title)=>{const safe=root.HelpRichText.safeVideo(raw);if(!safe)return;const box=el('div','article-video');let media;if(safe.kind==='youtube'){media=el('iframe');media.title='Video panduan '+title;media.src=safe.src;media.loading='lazy';media.referrerPolicy='strict-origin-when-cross-origin';media.allowFullscreen=true;}else{media=el('video');media.src=safe.src;media.controls=true;media.preload='metadata';}box.append(media);container.append(box);};
+  const appendExplanation=(container,data,title)=>{if(!data)return;appendBody(container,data);if(data.image)appendFigure(container,data.image,'Gambar '+title);if(data.video)appendVideo(container,data.video,title);};
   if(path.topic&&localQuery){
     const matches=path.modules.some(mod=>mod.topics.some(topic=>topic.slug===path.topic.slug&&((topic.title+' '+topic.description+' '+(topic.body||'')).toLowerCase().includes(localQuery.toLowerCase())||mod.label.toLowerCase().includes(localQuery.toLowerCase()))));
     if(!matches)localQuery='';
@@ -53,12 +54,12 @@ function render({view,menu,docs,state={}}){
       const topicBranch=el('details','guide-branch guide-topic'),topicChildren=el('div','guide-branch-children');
       if(path.topic?.slug===topic.slug)topicBranch.open=true;
       topicChildren.append(jump('Lihat submodul 1',topicUrl(topic)));
-      if(hasLegacy(topic.slug))topicChildren.append(jump('Panduan terdahulu · '+topic.title,readUrl(topic)));
+
       stages.forEach(section=>{
         const sectionBranch=el('details','guide-branch guide-section'),sectionChildren=el('div','guide-branch-children');
         if(path.topic?.slug===topic.slug&&path.section?.id===section.id)sectionBranch.open=true;
         sectionChildren.append(jump('Lihat submodul 2',sectionUrl(topic,section)));
-        if(hasLegacy(topic.slug+'/'+section.id))sectionChildren.append(jump('Panduan terdahulu · '+section.label,readUrl(topic,section)));
+
         section.parts.forEach(part=>sectionChildren.append(jump('Buka panduan '+part.label,readUrl(topic,section,part))));
         sectionBranch.append(el('summary','guide-branch-title',section.label),sectionChildren);topicChildren.append(sectionBranch);
       });
@@ -132,6 +133,8 @@ function render({view,menu,docs,state={}}){
       const list=el('ul');mod.topics.forEach(topic=>{const li=el('li');li.append(link(topic.title,topicUrl(topic)));list.append(li);});section.append(list);content.append(section);
     });
   }else if(!path.topic){
+    const data=contentData[root.HelpAdminModel.moduleKey(menu.image,path.module.id)];
+    appendExplanation(content,data,path.module.label);
     const list=el('ul','article-topic-list');path.module.topics.forEach(topic=>{const li=el('li');li.append(link(topic.title,topicUrl(topic)));list.append(li);});content.append(list);
   }else{
     if(path.reading){
@@ -141,16 +144,19 @@ function render({view,menu,docs,state={}}){
       appendBody(content,data);
       if(data.image)appendFigure(content,data.image,'Gambar panduan '+title);
       else if(!path.section&&['ppdb','ppob'].includes(menu.image)){const figure=el('figure','article-figure'),image=el('img');image.src='assets/'+menu.image+'.svg';image.alt='Ilustrasi konsep '+menu.category;figure.append(image,el('figcaption','','Ilustrasi konsep, bukan tampilan sistem final.'));content.append(figure);}
-      if(!data.body&&!data.html&&!data.image&&!(!path.section&&path.topic.description))content.append(el('p','article-lead','Isi panduan untuk bagian ini belum tersedia.'));
+      if(data.video)appendVideo(content,data.video,title);
+      if(!data.body&&!data.html&&!data.image&&!data.video&&!(!path.section&&path.topic.description))content.append(el('p','article-lead','Isi panduan untuk bagian ini belum tersedia.'));
       const related=root.ProductModel.relatedForProduct(menu,path.topic,docs);
       if(related.length){content.append(el('h2','','Panduan lain dalam produk ini'));const p=el('p');related.forEach((topic,i)=>{if(i)p.append(document.createTextNode(i===related.length-1?' atau ':', '));p.append(link(topic.title,firstGuideUrl(topic)));});content.append(p);}
     }else if(!path.section){
+      const data=contentData[path.topic.slug];
+      appendExplanation(content,data,path.topic.title);
       const list=el('ul','article-topic-list');
-      if(hasLegacy(path.topic.slug)){const old=el('li');old.append(link('Panduan terdahulu · '+path.topic.title,readUrl(path.topic)));list.append(old);}
       sections.forEach(section=>{const li=el('li');li.append(link(section.label,sectionUrl(path.topic,section)));list.append(li);});content.append(list);
     }else if(!path.part){
+      const data=contentData[path.topic.slug+'/'+path.section.id];
+      appendExplanation(content,data,path.section.label);
       const list=el('ul','article-topic-list');
-      if(hasLegacy(path.topic.slug+'/'+path.section.id)){const old=el('li');old.append(link('Panduan terdahulu · '+path.section.label,readUrl(path.topic,path.section)));list.append(old);}
       path.section.parts.forEach(part=>{const li=el('li');li.append(link(part.label,readUrl(path.topic,path.section,part)));list.append(li);});content.append(list);
     }else{
       content.append(link('Baca panduan '+path.part.label,readUrl(path.topic,path.section,path.part)));

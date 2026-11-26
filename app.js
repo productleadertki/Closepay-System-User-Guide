@@ -5,7 +5,7 @@ const view=document.getElementById('view'), search=document.getElementById('sear
 let shown=10, filter='Semua topik';
 const byMenu=key=>menus.find(menu=>menu.image===key);
 const byDoc=slug=>docs.find(doc=>doc.slug===slug);
-const guideForDoc=doc=>{const menu=menus.find(item=>item.category===doc.category),sections=window.HELP_HIERARCHY.topicSections?.[doc.slug]||window.HELP_HIERARCHY.sections?.[menu?.image]||[];for(const section of sections)if(section.parts?.length)return {path:'#/baca/'+encodeURIComponent(doc.slug)+'/'+encodeURIComponent(section.id)+'/'+encodeURIComponent(section.parts[0].id),title:section.parts[0].label};return {path:window.HELP_CONTENT?.[doc.slug]?.body||window.HELP_CONTENT?.[doc.slug]?.html||window.HELP_CONTENT?.[doc.slug]?.image?'#/baca/'+encodeURIComponent(doc.slug):'#/panduan/'+encodeURIComponent(doc.slug),title:doc.title};};
+const guideForDoc=doc=>{const menu=menus.find(item=>item.category===doc.category),sections=window.HELP_HIERARCHY.topicSections?.[doc.slug]||window.HELP_HIERARCHY.sections?.[menu?.image]||[];for(const section of sections)if(section.parts?.length)return {path:'#/baca/'+encodeURIComponent(doc.slug)+'/'+encodeURIComponent(section.id)+'/'+encodeURIComponent(section.parts[0].id),title:section.parts[0].label};return {path:'#/panduan/'+encodeURIComponent(doc.slug),title:doc.title};};
 const docPath=doc=>guideForDoc(doc).path;
 const menuPath=menu=>'#/menu/'+encodeURIComponent(menu.image);
 

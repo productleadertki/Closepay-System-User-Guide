@@ -4,18 +4,17 @@ const fs=require('node:fs');
 const ui=()=>fs.readFileSync('./hierarchy-ui.js','utf8');
 const admin=()=>fs.readFileSync('./admin.js','utf8');
 
-test('module and submodule title screens have no article action of their own',()=>{
- const source=ui(),titles=source.slice(source.indexOf('}else if(!path.topic){'),source.indexOf('article.append(content)'));
- assert.doesNotMatch(titles,/Baca panduan '\+path\.(topic|section)/);
- assert.match(titles,/path\.section\.parts\.forEach/);
+test('module and submodule screens retain child navigation alongside optional explanations',()=>{
+ const source=ui();
+ assert.match(source,/path\.section\.parts\.forEach/);
+ assert.match(source,/moduleKey\(menu\.image,path\.module\.id\)/);
 });
 
-test('guide is the only new rich-text entity in admin',()=>{
+test('rich-text editor is available for modules and every submodule level',()=>{
  const source=admin();
- assert.match(source,/\['part'\]\.includes\(type\)/);
+ assert.match(source,/\['module','topic','section','part'\]\.includes\(type\)/);
  assert.match(source,/\+ Panduan/);
  assert.match(source,/Submodul 1 baru/);
- assert.doesNotMatch(source,/\['topic','section','part'\]\.includes\(type\)/);
 });
 
 test('new submodule starts without inherited example sections',()=>{
