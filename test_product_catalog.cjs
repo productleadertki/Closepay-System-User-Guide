@@ -7,9 +7,9 @@ const vm=require('node:vm');
 const context={window:{}};vm.runInNewContext(fs.readFileSync('./help-index.js','utf8'),context);
 const docs=context.window.HELP_TOPICS;
 
-test('demo catalog contains standalone PPDB and PPOB products',()=>{
-  assert.deepEqual(menus.map(m=>m.category),['PPDB','PPOB']);
-  assert.ok(menus.every(m=>m.intro&&m.featured.length>=4));
+test('demo catalog retains PPDB and PPOB while adding Closepay payment guides',()=>{
+  assert.deepEqual(menus.slice(0,2).map(m=>m.category),['PPDB','PPOB']);
+  assert.ok(menus.every(m=>m.intro&&m.featured.length>=3));
 });
 test('each example product owns distinct modules and needs',()=>{
   const all=[];

@@ -6,7 +6,7 @@ function videoOk(raw){if(typeof raw!=='string'||raw.length>2048)return false;try
 const slugOk=x=>typeof x==='string'&&/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(x);
 const isoDateOk=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)&&!Number.isNaN(Date.parse(value))&&new Date(value).toISOString()===value;
 const copy=x=>JSON.parse(JSON.stringify(x));
-function makeState(menus,hierarchy,home){return {version:1,menus:copy(menus),hierarchy:{...copy(hierarchy),topicSections:copy(hierarchy.topicSections||{})},home:copy(home),content:{}};}
+function makeState(menus,hierarchy,home,sampleContent={}){return {version:1,sampleCatalogVersion:2,menus:copy(menus),hierarchy:{...copy(hierarchy),topicSections:copy(hierarchy.topicSections||{})},home:copy(home),content:copy(sampleContent)};}
 function deriveTopics(s){return s.menus.flatMap(m=>m.featured.map(t=>({title:t.label,slug:t.slug,category:m.category,type:'Panduan',description:t.description||'',body:Object.entries(s.content).filter(([key])=>key===t.slug||key.startsWith(t.slug+'/')).map(([,value])=>value.body||'').join(' ')})));}
 function validate(s){
  const errors=[];
@@ -55,7 +55,29 @@ function removeTopic(s,product,slug){const menu=s.menus.find(m=>m.image===produc
 function removeSection(s,product,topic,id){const sections=s.hierarchy.topicSections[topic]||s.hierarchy.sections[product]||[];s.hierarchy.topicSections[topic]=copy(sections).filter(section=>section.id!==id);const prefix=topic+'/'+id;for(const key of Object.keys(s.content))if(key===prefix||key.startsWith(prefix+'/'))delete s.content[key];}
 function removeModule(s,product,id){const modules=s.hierarchy.products[product]||[];const mod=modules.find(m=>m.id===id);if(!mod)return;delete s.content[moduleKey(product,id)];for(const slug of [...mod.topics])removeTopic(s,product,slug);s.hierarchy.products[product]=modules.filter(m=>m.id!==id);}
 function removeProduct(s,id){for(const mod of [...(s.hierarchy.products[id]||[])])removeModule(s,id,mod.id);s.menus=s.menus.filter(m=>m.image!==id);delete s.hierarchy.products[id];delete s.hierarchy.sections[id];}
-function load(storage,menus,hierarchy,home){const initial=makeState(menus,hierarchy,home);try{const raw=storage.getItem(KEY);if(!raw)return initial;const value=JSON.parse(raw);const errors=validate(value);if(errors.length)throw Error(errors.join(' '));return value;}catch(e){return initial;}}
+function withSamples(saved,menus,hierarchy,sampleContent={}){
+ if(saved.sampleCatalogVersion>=2)return saved;
+ const next=copy(saved);
+ const slugs=new Set(next.menus.flatMap(menu=>menu.featured.map(topic=>topic.slug)));
+ const categories=new Set(next.menus.map(menu=>menu.category.toLowerCase()));
+ for(const menu of menus.slice(2)){
+  if(next.menus.some(m=>m.image===menu.image)||categories.has(menu.category.toLowerCase())||menu.featured.some(topic=>slugs.has(topic.slug)))continue;
+  next.menus.push(copy(menu));
+  categories.add(menu.category.toLowerCase());
+  for(const topic of menu.featured)slugs.add(topic.slug);
+  next.hierarchy.products[menu.image]=copy(hierarchy.products[menu.image]);
+  next.hierarchy.sections[menu.image]=copy(hierarchy.sections[menu.image]);
+  for(const topic of menu.featured){
+   next.hierarchy.topicSections[topic.slug]=copy(hierarchy.topicSections[topic.slug]);
+   for(const [key,value] of Object.entries(sampleContent))if(key===topic.slug||key.startsWith(topic.slug+'/')){
+    if(!(key in next.content))next.content[key]=copy(value);
+   }
+  }
+ }
+ next.sampleCatalogVersion=2;
+ return validate(next).length?saved:next;
+}
+function load(storage,menus,hierarchy,home,sampleContent={}){const initial=makeState(menus,hierarchy,home,sampleContent);try{const raw=storage.getItem(KEY);if(!raw)return initial;const value=JSON.parse(raw);const errors=validate(value);if(errors.length)throw Error(errors.join(' '));return withSamples(value,menus,hierarchy,sampleContent);}catch(e){return initial;}}
 function save(storage,s){const errors=validate(s);if(errors.length)throw Error(errors.join(' '));storage.setItem(KEY,JSON.stringify(s));}
-return {KEY,moduleKey,videoOk,makeState,deriveTopics,validate,removeTopic,removeSection,removeModule,removeProduct,load,save,copy,slugOk};
+return {KEY,moduleKey,videoOk,makeState,withSamples,deriveTopics,validate,removeTopic,removeSection,removeModule,removeProduct,load,save,copy,slugOk};
 });

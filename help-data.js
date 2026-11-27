@@ -6,8 +6,9 @@ let raw;
 try{raw=root.localStorage.getItem(model.KEY);}catch(e){return;}
 if(!raw)return;
 try{
- const data=JSON.parse(raw),errors=model.validate(data);
+ const saved=JSON.parse(raw),errors=model.validate(saved);
  if(errors.length)throw Error(errors.join(' '));
+ const data=model.withSamples(saved,root.HELP_MENUS,root.HELP_HIERARCHY,root.HELP_SAMPLE_CONTENT);
  root.HELP_MENUS=data.menus;
  root.HELP_HIERARCHY=data.hierarchy;
  root.HELP_HOME=data.home;

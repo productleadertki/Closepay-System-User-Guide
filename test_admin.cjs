@@ -53,6 +53,15 @@ test('deleting a section keeps content of a similarly prefixed sibling',()=>{
  assert.deepEqual(model.validate(s),[]);
 });
 
+test('admin sidebar toggle exposes its state and updates on resize',()=>{
+ const source=fs.readFileSync('./admin.js','utf8'),page=fs.readFileSync('./admin.html','utf8');
+ assert.match(source,/function syncRailToggle\(\)/);
+ assert.match(source,/window\.addEventListener\('resize',syncRailToggle\)/);
+ assert.match(source,/Sembunyikan sidebar/);
+ assert.match(source,/Tampilkan sidebar/);
+ assert.match(page,/\.editor-full\.rail-collapsed \.layout\{grid-template-columns:0 minmax\(0,1fr\)\}/);
+});
+
 test('admin offers full-page edit, split preview and preview-only modes',()=>{
  const source=fs.readFileSync('./admin.js','utf8'),page=fs.readFileSync('./admin.html','utf8');
  assert.match(source,/const modes=\[['"]preview['"],['"]split['"],['"]edit['"]\]/);
@@ -144,7 +153,7 @@ test('admin page offers product hierarchy editing and export/import',()=>{
 
 test('viewer loads admin override before application and supports article bodies',()=>{
  const html=fs.readFileSync('./index.html','utf8');const ui=fs.readFileSync('./hierarchy-ui.js','utf8');
- assert.match(html,/<script src="help-admin-model.js"><\/script><script src="help-data.js"><\/script>/);
+ assert.match(html,/<script src="help-admin-model.js"><\/script><script src="help-content.js"><\/script><script src="help-data.js"><\/script>/);
  assert.match(ui,/HELP_CONTENT/);
  assert.match(ui,/const key=path\.topic\.slug\+\(path\.section\?'\/'\+path\.section\.id:''\)\+\(path\.part\?'\/'\+path\.part\.id:''\)/);
  assert.match(ui,/if\(data\.image\)appendFigure\(content,data\.image/);

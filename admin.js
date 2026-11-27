@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 const M=window.HelpAdminModel,tree=document.getElementById('tree'),editor=document.getElementById('editor'),status=document.getElementById('status');
-let state=M.load(localStorage,window.HELP_MENUS,window.HELP_HIERARCHY,window.HELP_HOME);
+let state=M.load(localStorage,window.HELP_MENUS,window.HELP_HIERARCHY,window.HELP_HOME,window.HELP_SAMPLE_CONTENT);
 let selection=state.menus.length?{kind:'product',product:state.menus[0].image}:{kind:'new-product'};
 const modes=['preview','split','edit'];let editorMode='split';
 const e=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;};
@@ -174,13 +174,21 @@ function remove(){const k=selection.kind,p=selection.product,m=selection.module,
  if(k==='part'){s.hierarchy.topicSections[t]=M.copy(sectionsFor(s,t,p));s.hierarchy.topicSections[t].find(x=>x.id===sec).parts=s.hierarchy.topicSections[t].find(x=>x.id===sec).parts.filter(x=>x.id!==part);delete s.content[t+'/'+sec+'/'+part];}
  },next);
 }
-function render(){document.body.classList.add('editor-full');renderTree();renderEditor();document.getElementById('tree-toggle').setAttribute('aria-expanded',String(innerWidth>950?!document.body.classList.contains('rail-collapsed'):document.body.classList.contains('rail-open')));}
+function syncRailToggle(){
+ const toggle=document.getElementById('tree-toggle');
+ if(innerWidth>950)document.body.classList.remove('rail-open');
+ const open=innerWidth>950?!document.body.classList.contains('rail-collapsed'):document.body.classList.contains('rail-open');
+ toggle.setAttribute('aria-expanded',String(open));
+ toggle.textContent=open?'☰ Sembunyikan sidebar':'☰ Tampilkan sidebar';
+}
+function render(){document.body.classList.add('editor-full');renderTree();renderEditor();syncRailToggle();}
 document.getElementById('feedback-report').addEventListener('click',()=>select({kind:'feedback'}));
-document.getElementById('tree-toggle').addEventListener('click',()=>{const mobile=innerWidth<=950,open=mobile?document.body.classList.toggle('rail-open'):!document.body.classList.toggle('rail-collapsed');document.getElementById('tree-toggle').setAttribute('aria-expanded',String(open));if(open)tree.querySelector('.tree-button.active')?.focus();});
+document.getElementById('tree-toggle').addEventListener('click',()=>{const mobile=innerWidth<=950,open=mobile?document.body.classList.toggle('rail-open'):!document.body.classList.toggle('rail-collapsed');syncRailToggle();if(open)tree.querySelector('.tree-button.active')?.focus();});
+window.addEventListener('resize',syncRailToggle);
 document.getElementById('export').addEventListener('click',()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=e('a');a.href=url;a.download='bantuan-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);say('Cadangan JSON berhasil disiapkan.');});
 document.getElementById('import').addEventListener('click',()=>document.getElementById('import-file').click());
 document.getElementById('import-file').addEventListener('change',async ev=>{const file=ev.target.files?.[0];if(!file)return;try{if(file.size>4000000)throw Error('File JSON maksimal 4 MB.');const data=JSON.parse(await file.text());M.save(localStorage,data);state=data;selection=state.menus.length?{kind:'product',product:state.menus[0].image}:{kind:'new-product'};render();say('Impor berhasil. Muat ulang halaman bantuan.');}catch(err){say('Impor gagal: '+err.message,true);}ev.target.value='';});
-document.getElementById('reset').addEventListener('click',()=>{if(!confirm('Pulihkan data contoh? Semua perubahan lokal yang belum diekspor akan hilang.'))return;localStorage.removeItem(M.KEY);state=M.makeState(window.HELP_MENUS,window.HELP_HIERARCHY,window.HELP_HOME);selection={kind:'product',product:state.menus[0].image};render();say('Data contoh dipulihkan.');});
+document.getElementById('reset').addEventListener('click',()=>{if(!confirm('Pulihkan data contoh? Semua perubahan lokal yang belum diekspor akan hilang.'))return;localStorage.removeItem(M.KEY);state=M.makeState(window.HELP_MENUS,window.HELP_HIERARCHY,window.HELP_HOME,window.HELP_SAMPLE_CONTENT);selection={kind:'product',product:state.menus[0].image};render();say('Data contoh dipulihkan.');});
 window.addEventListener('storage',ev=>{if(ev.key===M.KEY)say('Data berubah di tab lain. Muat ulang admin sebelum menyimpan lagi.',true);});
 render();
 if(location.protocol==='file:')say('Mode file: perubahan admin mungkin tidak terbaca oleh index.html. Jalankan start-admin.bat dan buka kedua halaman di http://127.0.0.1:8765/.',true);
