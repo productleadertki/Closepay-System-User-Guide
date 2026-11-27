@@ -11,6 +11,19 @@ const moduleUrl=(menu,module)=>menuUrl(menu)+'/modul/'+encodeURIComponent(module
 const topicUrl=topic=>'#/panduan/'+encodeURIComponent(topic.slug);
 const sectionUrl=(topic,section)=>topicUrl(topic)+'/'+encodeURIComponent(section.id);
 const readUrl=(topic,section,part)=>'#/baca/'+encodeURIComponent(topic.slug)+(section?'/'+encodeURIComponent(section.id):'')+(part?'/'+encodeURIComponent(part.id):'');
+const PAGE_SIZE=15;
+function appendPaged(container,items,renderItem,selectedIndex=-1){
+  let start=selectedIndex>=0?Math.floor(selectedIndex/PAGE_SIZE)*PAGE_SIZE:0;
+  const makeMore=(label,step)=>{const more=el('button','hierarchy-more',label);more.type='button';more.addEventListener('click',event=>{event.stopPropagation();start=step;draw();});return more;};
+  function insertMore(button){if(container.localName==='ul'){const item=el('li','hierarchy-more-row');item.append(button);container.append(item);}else container.append(button);}
+  function draw(){
+    container.replaceChildren();
+    if(start>0)insertMore(makeMore('Lihat '+Math.min(PAGE_SIZE,start)+' sebelumnya',Math.max(0,start-PAGE_SIZE)));
+    items.slice(start,start+PAGE_SIZE).forEach(item=>container.append(renderItem(item)));
+    if(start+PAGE_SIZE<items.length)insertMore(makeMore('Lihat '+Math.min(PAGE_SIZE,items.length-start-PAGE_SIZE)+' lainnya',start+PAGE_SIZE));
+  }
+  draw();
+}
 function render({view,menu,docs,state={}}){
   if(lastProduct!==menu.image){localQuery='';lastProduct=menu.image;mobileNavOpen=false;}
   if(lastRoute!==location.hash){mobileNavOpen=sidebarVisible&&innerWidth<=760;lastRoute=location.hash;}
@@ -18,8 +31,8 @@ function render({view,menu,docs,state={}}){
   path.reading=!!state.reading&&!!path.topic&&(!state.part||!!path.part);
   const sections=path.topic?(config.topicSections?.[path.topic.slug]||config.sections?.[menu.image]||[]):config.sections?.[menu.image]||[];
   const contentData=root.HELP_CONTENT||{};
-  const firstGuideUrl=topic=>{const list=config.topicSections?.[topic.slug]||config.sections?.[menu.image]||[];for(const section of list)if(section.parts?.length)return readUrl(topic,section,section.parts[0]);return topicUrl(topic);};
-  const appendBody=(container,data)=>{if(!data)return;if(data.html){const rich=el('div','rich-body');rich.append(root.HelpRichText.fragment(data.html));container.append(rich);return;}if(data.body)String(data.body).split(/\n\s*\n/).filter(Boolean).forEach(block=>container.append(el('p','article-paragraph',block.trim())));};
+
+  const appendBody=(container,data)=>{if(!data)return;if(data.html){const rich=el('div','rich-body');rich.append(root.HelpRichText.fragment(data.html));container.append(rich);return;}if(data.markdown){const rich=el('div','rich-body');rich.append(root.HelpRichText.fragment(root.HelpMarkdown.toHtml(data.markdown)));container.append(rich);return;}if(data.body)String(data.body).split(/\n\s*\n/).filter(Boolean).forEach(block=>container.append(el('p','article-paragraph',block.trim())));};
   const appendFigure=(container,src,alt)=>{if(!src)return;const figure=el('figure','article-figure'),image=el('img');image.src=src;image.alt=alt;figure.append(image,el('figcaption','','Gambar panduan'));container.append(figure);};
   const appendVideo=(container,raw,title)=>{const safe=root.HelpRichText.safeVideo(raw);if(!safe)return;const box=el('div','article-video');let media;if(safe.kind==='youtube'){media=el('iframe');media.title='Video panduan '+title;media.src=safe.src;media.loading='lazy';media.referrerPolicy='strict-origin-when-cross-origin';media.allowFullscreen=true;}else{media=el('video');media.src=safe.src;media.controls=true;media.preload='metadata';}box.append(media);container.append(box);};
   const appendExplanation=(container,data,title)=>{if(!data)return;appendBody(container,data);if(data.image)appendFigure(container,data.image,'Gambar '+title);if(data.video)appendVideo(container,data.video,title);};
@@ -41,73 +54,75 @@ function render({view,menu,docs,state={}}){
     sidebarToggle.textContent=sidebarVisible?'Sembunyikan sidebar':'Tampilkan sidebar';
     if(sidebarVisible&&innerWidth<=760){mobileNavOpen=true;nav.classList.add('mobile-open');toggle.textContent='Sembunyikan daftar modul';toggle.setAttribute('aria-expanded','true');}
   });
-  const guideDropdown=el('details','guide-dropdown'),guideSummary=el('summary','guide-dropdown-toggle','Jelajahi panduan ▾'),guidePanel=el('nav','guide-dropdown-panel');
+  const guideDropdown=el('details','guide-dropdown'),guideSummary=el('summary','guide-dropdown-toggle','Jelajahi panduan'),guidePanel=el('nav','guide-dropdown-panel');
   guidePanel.setAttribute('aria-label','Pilih modul dan panduan '+menu.category);
   const jump=(title,url)=>{const item=link(title,url);item.className='guide-jump-link';if(location.hash===url)item.setAttribute('aria-current','page');return item;};
-  guidePanel.append(jump('Ikhtisar '+menu.category,menuUrl(menu)));
-  path.modules.forEach(mod=>{
+
+  appendPaged(guidePanel,path.modules,mod=>{
     const branch=el('details','guide-branch guide-module'),summary=el('summary','guide-branch-title',mod.label),children=el('div','guide-branch-children');
     if(path.module?.id===mod.id)branch.open=true;
     children.append(jump('Lihat modul '+mod.label,moduleUrl(menu,mod)));
-    mod.topics.forEach(topic=>{
+    const topicList=el('div');children.append(topicList);
+    appendPaged(topicList,mod.topics,topic=>{
       const stages=config.topicSections?.[topic.slug]||config.sections?.[menu.image]||[];
       const topicBranch=el('details','guide-branch guide-topic'),topicChildren=el('div','guide-branch-children');
       if(path.topic?.slug===topic.slug)topicBranch.open=true;
       topicChildren.append(jump('Lihat submodul 1',topicUrl(topic)));
-
-      stages.forEach(section=>{
+      const stageList=el('div');topicChildren.append(stageList);
+      appendPaged(stageList,stages,section=>{
         const sectionBranch=el('details','guide-branch guide-section'),sectionChildren=el('div','guide-branch-children');
         if(path.topic?.slug===topic.slug&&path.section?.id===section.id)sectionBranch.open=true;
         sectionChildren.append(jump('Lihat submodul 2',sectionUrl(topic,section)));
-
-        section.parts.forEach(part=>sectionChildren.append(jump('Buka panduan '+part.label,readUrl(topic,section,part))));
-        sectionBranch.append(el('summary','guide-branch-title',section.label),sectionChildren);topicChildren.append(sectionBranch);
-      });
-      topicBranch.append(el('summary','guide-branch-title',topic.title),topicChildren);children.append(topicBranch);
-    });
-    branch.append(summary,children);guidePanel.append(branch);
-  });
+        const partList=el('div');sectionChildren.append(partList);
+        appendPaged(partList,section.parts,part=>jump('Buka panduan '+part.label,readUrl(topic,section,part)),section.parts.findIndex(part=>part.id===path.part?.id));
+        sectionBranch.append(el('summary','guide-branch-title',section.label),sectionChildren);return sectionBranch;
+      },stages.findIndex(section=>section.id===path.section?.id));
+      topicBranch.append(el('summary','guide-branch-title',topic.title),topicChildren);return topicBranch;
+    },mod.topics.findIndex(topic=>topic.slug===path.topic?.slug));
+    branch.append(summary,children);return branch;
+  },path.modules.findIndex(mod=>mod.id===path.module?.id));
   guideDropdown.append(guideSummary,guidePanel);
   guideDropdown.addEventListener('keydown',event=>{if(event.key==='Escape'){guideDropdown.open=false;guideSummary.focus();}});
-  toolbar.append(sidebarToggle,guideDropdown,el('span','toolbar-hint','Navigasi modul dan panduan · '+menu.category));
+  toolbar.append(sidebarToggle,guideDropdown);
   sidebar.setAttribute('aria-label','Struktur informasi '+menu.category);
-  sidebar.append(button('← Semua produk','#/','back-products'),el('h2','sidebar-title',menu.category),el('p','sidebar-meta',path.modules.length+' modul · '+path.modules.reduce((n,m)=>n+m.topics.length,0)+' kebutuhan'));
+  sidebar.append(button('← Semua produk','#/','back-products'),el('h2','sidebar-title',menu.category));
   const filterLabel=el('label','local-filter'),input=el('input');input.type='search';input.placeholder='Cari modul atau kebutuhan…';input.value=localQuery;input.setAttribute('aria-label','Cari dalam produk '+menu.category);filterLabel.append(input);sidebar.append(filterLabel);
   const toggle=el('button','mobile-modules-toggle',mobileNavOpen?'Sembunyikan daftar modul':'Lihat daftar modul');toggle.type='button';toggle.setAttribute('aria-expanded',String(mobileNavOpen));
   const nav=el('nav','topic-nav mobile-collapsible'+(mobileNavOpen?' mobile-open':''));nav.setAttribute('aria-label','Modul dan submodul '+menu.category);
   toggle.addEventListener('click',()=>{mobileNavOpen=!mobileNavOpen;nav.classList.toggle('mobile-open',mobileNavOpen);toggle.textContent=mobileNavOpen?'Sembunyikan daftar modul':'Lihat daftar modul';toggle.setAttribute('aria-expanded',String(mobileNavOpen));});
-  nav.append(button('Ikhtisar produk',menuUrl(menu),'overview-item'+(!path.module?' active':'')));
+
   const groupList=el('div','module-list');nav.append(groupList);sidebar.append(toggle,nav);
   const expanded=new Set(path.modules.map(m=>m.id));
   function drawGroups(){
-    groupList.replaceChildren();const query=localQuery.trim().toLowerCase();let count=0;
-    path.modules.forEach(mod=>{
+    const query=localQuery.trim().toLowerCase();
+    const visibleModules=path.modules.filter(mod=>!query||mod.label.toLowerCase().includes(query)||mod.topics.some(t=>(t.title+' '+t.description+' '+(t.body||'')).toLowerCase().includes(query)));
+    appendPaged(groupList,visibleModules,mod=>{
       const moduleMatches=mod.label.toLowerCase().includes(query);
       const items=query&&!moduleMatches?mod.topics.filter(t=>(t.title+' '+t.description+' '+(t.body||'')).toLowerCase().includes(query)):mod.topics;
-      if(query&&!moduleMatches&&!items.length)return;
-      count+=items.length;
       const group=el('div','module-group'),heading=el('div','module-heading');
       const toggle=el('button','module-toggle',expanded.has(mod.id)?'▾':'▸');toggle.type='button';toggle.setAttribute('aria-label',(expanded.has(mod.id)?'Tutup ':'Buka ')+mod.label);toggle.setAttribute('aria-expanded',String(expanded.has(mod.id)));
       toggle.addEventListener('click',()=>{expanded.has(mod.id)?expanded.delete(mod.id):expanded.add(mod.id);drawGroups();});
       heading.append(toggle,button(mod.label,moduleUrl(menu,mod),'module-link'+(path.module?.id===mod.id&&!path.topic?' active':'')));group.append(heading);
       if(expanded.has(mod.id)){
         const children=el('div','module-children');
-        items.forEach(topic=>{
-          children.append(button(topic.title,topicUrl(topic),'topic-nav-item'+(path.topic?.slug===topic.slug&&!path.section?' active':'')));
+        appendPaged(children,items,topic=>{
+          const row=el('div');row.append(button(topic.title,topicUrl(topic),'topic-nav-item'+(path.topic?.slug===topic.slug&&!path.section?' active':'')));
           if(path.topic?.slug===topic.slug){
             const stages=el('div','stage-children');
-            sections.forEach(section=>{
-              stages.append(button(section.label,sectionUrl(topic,section),'stage-item'+(path.section?.id===section.id&&!path.part?' active':'')));
+            appendPaged(stages,sections,section=>{
+              const sectionRow=el('div');sectionRow.append(button(section.label,sectionUrl(topic,section),'stage-item'+(path.section?.id===section.id&&!path.part?' active':'')));
               if(path.section?.id===section.id){
-                section.parts.forEach(part=>stages.append(button(part.label,readUrl(topic,section,part),'part-item'+(path.part?.id===part.id?' active':''))));
+                const parts=el('div');appendPaged(parts,section.parts,part=>button(part.label,readUrl(topic,section,part),'part-item'+(path.part?.id===part.id?' active':'')),section.parts.findIndex(part=>part.id===path.part?.id));sectionRow.append(parts);
               }
-            });children.append(stages);
+              return sectionRow;
+            },sections.findIndex(section=>section.id===path.section?.id));row.append(stages);
           }
-        });group.append(children);
+          return row;
+        },items.findIndex(topic=>topic.slug===path.topic?.slug));group.append(children);
       }
-      groupList.append(group);
-    });
-    if(!count)groupList.append(el('p','local-empty','Tidak ada modul atau kebutuhan yang cocok.'));
+      return group;
+    },visibleModules.findIndex(mod=>mod.id===path.module?.id));
+    if(!visibleModules.length)groupList.append(el('p','local-empty','Tidak ada modul atau panduan yang cocok.'));
   }
   input.addEventListener('input',()=>{localQuery=input.value;if(innerWidth<=760){mobileNavOpen=true;nav.classList.add('mobile-open');toggle.textContent='Sembunyikan daftar modul';toggle.setAttribute('aria-expanded','true');}drawGroups();});drawGroups();
   const breadcrumb=el('nav','crumbs');breadcrumb.setAttribute('aria-label','Jejak navigasi');
@@ -126,16 +141,10 @@ function render({view,menu,docs,state={}}){
   const content=el('div','article-content');
   if(!path.module){
     content.append(el('p','article-lead',menu.intro));
-    content.append(el('h2','','Modul dalam produk ini'));
-    content.append(el('p','','Pilih modul di panel kiri atau pilih kebutuhan di bawah. Setiap produk memiliki struktur dan penjelasannya sendiri.'));
-    path.modules.forEach(mod=>{
-      const section=el('section','overview-module');section.append(el('h3','',mod.label));
-      const list=el('ul');mod.topics.forEach(topic=>{const li=el('li');li.append(link(topic.title,topicUrl(topic)));list.append(li);});section.append(list);content.append(section);
-    });
   }else if(!path.topic){
     const data=contentData[root.HelpAdminModel.moduleKey(menu.image,path.module.id)];
     appendExplanation(content,data,path.module.label);
-    const list=el('ul','article-topic-list');path.module.topics.forEach(topic=>{const li=el('li');li.append(link(topic.title,topicUrl(topic)));list.append(li);});content.append(list);
+    const list=el('ul','article-topic-list');appendPaged(list,path.module.topics,topic=>{const li=el('li');li.append(link(topic.title,topicUrl(topic)));return li;},path.module.topics.findIndex(topic=>topic.slug===path.topic?.slug));content.append(list);
   }else{
     if(path.reading){
       const key=path.topic.slug+(path.section?'/'+path.section.id:'')+(path.part?'/'+path.part.id:'');
@@ -143,32 +152,30 @@ function render({view,menu,docs,state={}}){
       if(!path.section&&path.topic.description)content.append(el('p','article-lead',path.topic.description));
       appendBody(content,data);
       if(data.image)appendFigure(content,data.image,'Gambar panduan '+title);
-      else if(!path.section&&['ppdb','ppob'].includes(menu.image)){const figure=el('figure','article-figure'),image=el('img');image.src='assets/'+menu.image+'.svg';image.alt='Ilustrasi konsep '+menu.category;figure.append(image,el('figcaption','','Ilustrasi konsep, bukan tampilan sistem final.'));content.append(figure);}
+      else if(!data.markdown&&!data.html&&!data.body&&!path.section&&['ppdb','ppob'].includes(menu.image)){const figure=el('figure','article-figure'),image=el('img');image.src='assets/'+menu.image+'.svg';image.alt='Ilustrasi konsep '+menu.category;figure.append(image,el('figcaption','','Ilustrasi konsep, bukan tampilan sistem final.'));content.append(figure);}
       if(data.video)appendVideo(content,data.video,title);
-      if(!data.body&&!data.html&&!data.image&&!data.video&&!(!path.section&&path.topic.description))content.append(el('p','article-lead','Isi panduan untuk bagian ini belum tersedia.'));
-      const related=root.ProductModel.relatedForProduct(menu,path.topic,docs);
-      if(related.length){content.append(el('h2','','Panduan lain dalam produk ini'));const p=el('p');related.forEach((topic,i)=>{if(i)p.append(document.createTextNode(i===related.length-1?' atau ':', '));p.append(link(topic.title,firstGuideUrl(topic)));});content.append(p);}
+      if(!data.body&&!data.html&&!data.markdown&&!data.image&&!data.video&&!(!path.section&&path.topic.description))content.append(el('p','article-lead','Isi panduan untuk bagian ini belum tersedia.'));
+
     }else if(!path.section){
       const data=contentData[path.topic.slug];
       appendExplanation(content,data,path.topic.title);
       const list=el('ul','article-topic-list');
-      sections.forEach(section=>{const li=el('li');li.append(link(section.label,sectionUrl(path.topic,section)));list.append(li);});content.append(list);
+      appendPaged(list,sections,section=>{const li=el('li');li.append(link(section.label,sectionUrl(path.topic,section)));return li;},sections.findIndex(section=>section.id===path.section?.id));content.append(list);
     }else if(!path.part){
       const data=contentData[path.topic.slug+'/'+path.section.id];
       appendExplanation(content,data,path.section.label);
       const list=el('ul','article-topic-list');
-      path.section.parts.forEach(part=>{const li=el('li');li.append(link(part.label,readUrl(path.topic,path.section,part)));list.append(li);});content.append(list);
+      appendPaged(list,path.section.parts,part=>{const li=el('li');li.append(link(part.label,readUrl(path.topic,path.section,part)));return li;},path.section.parts.findIndex(part=>part.id===path.part?.id));content.append(list);
     }else{
       content.append(link('Baca panduan '+path.part.label,readUrl(path.topic,path.section,path.part)));
     }
   }
   guideDocument.append(content);
-  if(path.reading){
-    const aside=el('aside','guide-toc'),heading=el('h2','','Di halaman ini');aside.append(heading);
-    const headings=[...content.querySelectorAll('.rich-body h2,.rich-body h3')];
-    headings.forEach(item=>{const target=el('button','guide-toc-link',item.textContent);target.type='button';target.addEventListener('click',()=>item.scrollIntoView({behavior:'smooth',block:'start'}));aside.append(target);});
-    const back=link('← Kembali ke '+(path.section?'submodul 2':'submodul 1'),path.section?sectionUrl(path.topic,path.section):topicUrl(path.topic));back.className='guide-toc-back';aside.append(back);guideLayout.append(aside);
-  }
+  const pageId=!path.module?'@product/'+menu.image:!path.topic?root.HelpAdminModel.moduleKey(menu.image,path.module.id):path.topic.slug+(path.section?'/'+path.section.id:'')+(path.part?'/'+path.part.id:'');
+  const pageData=contentData[pageId];
+  if(pageData?.publishedAt||pageData?.updatedAt){const meta=el('div','content-dates');if(pageData.publishedAt)meta.append(el('span','','Diterbitkan '+new Date(pageData.publishedAt).toLocaleDateString('id-ID')));if(pageData.updatedAt)meta.append(el('span','','Diperbarui '+new Date(pageData.updatedAt).toLocaleDateString('id-ID')));guideDocument.append(meta);}
+  if(root.FeedbackUI){const feedback=el('div','feedback-slot');guideDocument.append(feedback);root.FeedbackUI.mount(feedback,{pageId,title});}
+
   workspace.append(toolbar,sidebar,article);view.append(workspace);
 }
 root.HierarchyUI={render};

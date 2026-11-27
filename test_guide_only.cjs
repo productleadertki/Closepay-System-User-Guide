@@ -6,7 +6,7 @@ const admin=()=>fs.readFileSync('./admin.js','utf8');
 
 test('module and submodule screens retain child navigation alongside optional explanations',()=>{
  const source=ui();
- assert.match(source,/path\.section\.parts\.forEach/);
+ assert.match(source,/appendPaged\(list,path\.section\.parts/);
  assert.match(source,/moduleKey\(menu\.image,path\.module\.id\)/);
 });
 

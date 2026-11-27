@@ -4,6 +4,7 @@ const KEY='help-admin-v1';
 const moduleKey=(product,id)=>'@module/'+product+'/'+id;
 function videoOk(raw){if(typeof raw!=='string'||raw.length>2048)return false;try{const u=new URL(raw);if(u.protocol!=='https:')return false;const h=u.hostname.toLowerCase();if(['youtube.com','www.youtube.com','m.youtube.com','youtu.be','www.youtube-nocookie.com'].includes(h)){const id=h==='youtu.be'?u.pathname.slice(1):u.pathname==='/watch'?u.searchParams.get('v'):u.pathname.match(/^\/(?:embed|shorts|live)\/([^/]+)$/)?.[1];return /^[\w-]{11}$/.test(id||'');}return /\.(?:mp4|webm)$/i.test(u.pathname);}catch{return false;}}
 const slugOk=x=>typeof x==='string'&&/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(x);
+const isoDateOk=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)&&!Number.isNaN(Date.parse(value))&&new Date(value).toISOString()===value;
 const copy=x=>JSON.parse(JSON.stringify(x));
 function makeState(menus,hierarchy,home){return {version:1,menus:copy(menus),hierarchy:{...copy(hierarchy),topicSections:copy(hierarchy.topicSections||{})},home:copy(home),content:{}};}
 function deriveTopics(s){return s.menus.flatMap(m=>m.featured.map(t=>({title:t.label,slug:t.slug,category:m.category,type:'Panduan',description:t.description||'',body:Object.entries(s.content).filter(([key])=>key===t.slug||key.startsWith(t.slug+'/')).map(([,value])=>value.body||'').join(' ')})));}
@@ -12,7 +13,7 @@ function validate(s){
  if(!s||s.version!==1||!Array.isArray(s.menus)||!s.hierarchy||!s.hierarchy.products||!s.hierarchy.sections||!s.hierarchy.topicSections||!s.home||!Array.isArray(s.home.recommended)||!s.content||typeof s.content!=='object')return ['Format data admin tidak valid.'];
  const keys=new Set(),names=new Set(),topics=new Set(),moduleKeys=new Set();
  for(const m of s.menus){
-  if(!m||!slugOk(m.image)||!String(m.category||'').trim()||!Array.isArray(m.featured)||typeof m.intro!=='string'){errors.push('Produk tidak valid.');continue;}
+  if(!m||!slugOk(m.image)||!String(m.category||'').trim()||!Array.isArray(m.featured)||typeof m.intro!=='string'||(m.icon!==undefined&&(typeof m.icon!=='string'||[...m.icon].length>4||/[<>\u0000-\u001f]/.test(m.icon)))){errors.push('Produk tidak valid.');continue;}
   if(keys.has(m.image))errors.push('ID produk duplikat: '+m.image);keys.add(m.image);
   if(names.has(m.category.toLowerCase()))errors.push('Nama produk duplikat: '+m.category);names.add(m.category.toLowerCase());
   const modules=s.hierarchy.products[m.image];if(!Array.isArray(modules)){errors.push('Modul produk tidak ada: '+m.image);continue;}
@@ -39,9 +40,12 @@ function validate(s){
  for(const [key,value] of Object.entries(s.content)){
   if(!value||typeof value!=='object'||Array.isArray(value)||
      (value.body!==undefined&&typeof value.body!=='string')||
-     (value.markdown!==undefined&&(typeof value.markdown!=='string'||value.markdown.length>200000))||
+     (value.markdown!==undefined&&(typeof value.markdown!=='string'||value.markdown.length>3500000))||
      (value.html!==undefined&&(typeof value.html!=='string'||value.html.length>200000))||
      (value.video!==undefined&&value.video!==''&&!videoOk(value.video))||
+     (value.publishedAt!==undefined&&!isoDateOk(value.publishedAt))||
+     (value.updatedAt!==undefined&&!isoDateOk(value.updatedAt))||
+     (value.publishedAt&&value.updatedAt&&value.updatedAt<value.publishedAt)||
      (value.image!==undefined&&(typeof value.image!=='string'||value.image.length>1500000||!/^data:image\/(png|jpeg|webp|gif);base64,/.test(value.image)))||
      !(topics.has(key.split('/')[0])||moduleKeys.has(key)))errors.push('Data konten tidak valid: '+key);
  }

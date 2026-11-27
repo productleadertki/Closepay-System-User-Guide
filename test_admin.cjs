@@ -9,6 +9,21 @@ const context={window:{}};vm.runInNewContext(fs.readFileSync('./help-index.js','
 const model=require('./help-admin-model.js');
 const initial=()=>model.makeState(menus,hierarchy,home);
 
+test('content dates require valid ISO timestamps while older records stay compatible',()=>{
+ const data=initial();data.content['ppdb-formulir']={body:'Uji',publishedAt:'2026-11-26T03:00:00.000Z',updatedAt:'2026-11-27T03:00:00.000Z'};
+ assert.deepEqual(model.validate(data),[]);
+ data.content['ppdb-formulir'].updatedAt='yesterday';
+ assert.ok(model.validate(data).some(message=>message.includes('konten')));
+ delete data.content['ppdb-formulir'].updatedAt;
+ assert.deepEqual(model.validate(data),[]);
+});
+
+test('admin records publish and update dates for saved guide content',()=>{
+ const admin=fs.readFileSync('./admin.js','utf8');
+ assert.match(admin,/publishedAt:previous\?\.publishedAt\|\|now/);
+ assert.match(admin,/updatedAt:now/);
+});
+
 test('module content is optional, validated and removed with its module',()=>{
  const s=initial();const key=model.moduleKey('ppdb','pendaftaran');
  assert.equal(key,'@module/ppdb/pendaftaran');
@@ -67,6 +82,19 @@ test('saving waits until a selected photo finishes loading',()=>{
  const source=fs.readFileSync('./admin.js','utf8');
  assert.match(source,/getImage\.pending\?\.\(\)/);
  assert.match(source,/Foto sedang diproses/);
+});
+
+test('product icons accept short glyphs but reject markup and oversized values',()=>{
+ const state=model.makeState(menus,hierarchy,home);
+ state.menus[0].icon='🎓';assert.deepEqual(model.validate(state),[]);
+ state.menus[0].icon='<img>';assert.ok(model.validate(state).some(message=>message.includes('Produk')));
+ state.menus[0].icon='A'.repeat(20);assert.ok(model.validate(state).some(message=>message.includes('Produk')));
+});
+
+test('admin offers an editable product icon field',()=>{
+ const source=fs.readFileSync('./admin.js','utf8');
+ assert.match(source,/field\(fields,'Ikon produk','icon'/);
+ assert.match(source,/target\.icon=data\.icon/);
 });
 
 test('admin creates an isolated product, module, topic, section and part',()=>{

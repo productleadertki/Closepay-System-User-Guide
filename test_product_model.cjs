@@ -5,7 +5,14 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const context={window:{}};vm.runInNewContext(fs.readFileSync('./help-index.js','utf8'),context);
 const docs=context.window.HELP_TOPICS;
-const {topicsForProduct,relatedForProduct}=require('./product-model.js');
+const {topicsForProduct,relatedForProduct,iconForProduct}=require('./product-model.js');
+
+test('product icon chooses configured glyph and falls back to initials',()=>{
+ assert.equal(iconForProduct({category:'Uji',image:'uji',icon:'⚙️'}),'⚙️');
+ assert.equal(iconForProduct({category:'Bantuan',image:'bantuan'}),'Ba');
+ assert.equal(iconForProduct({category:'PPDB',image:'ppdb'}),'🎓');
+ assert.equal(iconForProduct({category:'PPOB',image:'ppob'}),'🧾');
+});
 
 test('product topics never include another product',()=>{
   for(const menu of menus){
